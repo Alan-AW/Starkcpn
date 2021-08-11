@@ -1,21 +1,13 @@
 from pathlib import Path
 import os
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/3.2/howto/deployment/checklist/
-
-# SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 'django-insecure-ycn%9k4+)5#7)i8+gqz1rlhgkvkvswmf_@quisq$z5p!7vrjc*'
 
-# SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
 ALLOWED_HOSTS = ['*']
-
-# Application definition
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -41,10 +33,10 @@ ROOT_URLCONF = 'Stark.urls'
 
 TEMPLATES = [
     {
-        'BACKEND' : 'django.template.backends.django.DjangoTemplates',
-        'DIRS'    : [os.path.join(BASE_DIR / 'templates')],
+        'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        'DIRS': [os.path.join(BASE_DIR / 'templates')],
         'APP_DIRS': True,
-        'OPTIONS' : {
+        'OPTIONS': {
             'context_processors': [
                 'django.template.context_processors.debug',
                 'django.template.context_processors.request',
@@ -57,18 +49,14 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'Stark.wsgi.application'
 
-# Database
-# https://docs.djangoproject.com/en/3.2/ref/settings/#databases
-
 DATABASES = {
     'default': {
-        'ENGINE'  : 'django.db.backends.mysql',
-        'NAME'    : 'stark',
-        'USER'    : 'root',
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': 'stark',
+        'USER': 'root',
         'PASSWORD': 'xcdh560',
-        'HOST'    : '127.0.0.1',
-        'PORT'    : 3306,
-        # 同步测试文件
+        'HOST': '127.0.0.1',
+        'PORT': 3306,
     }
 }
 
