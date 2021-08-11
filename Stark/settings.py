@@ -41,10 +41,10 @@ ROOT_URLCONF = 'Stark.urls'
 
 TEMPLATES = [
     {
-        'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [os.path.join(BASE_DIR / 'templates')],
+        'BACKEND' : 'django.template.backends.django.DjangoTemplates',
+        'DIRS'    : [os.path.join(BASE_DIR / 'templates')],
         'APP_DIRS': True,
-        'OPTIONS': {
+        'OPTIONS' : {
             'context_processors': [
                 'django.template.context_processors.debug',
                 'django.template.context_processors.request',
@@ -62,13 +62,13 @@ WSGI_APPLICATION = 'Stark.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'stark',
-        'USER': 'root',
+        'ENGINE'  : 'django.db.backends.mysql',
+        'NAME'    : 'stark',
+        'USER'    : 'root',
         'PASSWORD': 'xcdh560',
-        'HOST': '127.0.0.1',
-        'PORT': 3306,
-
+        'HOST'    : '127.0.0.1',
+        'PORT'    : 3306,
+        # 同步测试文件
     }
 }
 
