@@ -1,0 +1,90 @@
+stark组件
+功能：stark组件，快速实现数据表的增删改查
+知识点：
+    1. django启动时自定义执行某个py文件
+        当项目启动的时候，会将所有的路由都加载到内存，然后再做路由的匹配。
+        在项目加载路由之前启动某个py文件。
+
+        实现：在任意app中apps.py文件内 APP——config 类中定义一个ready方法
+            from django.utils.module_loading import autodiscover_modules
+            def ready(self):
+                autodiscover_modules('文件名')
+            django在启动的时候就会去所有已经注册的APP中寻找一个 文件名.py 的文件并且自动导入执行它里面的方法
+
+        注意：当django启动的时候会自动执行两个线程
+            一个用来运行项目，另一个用来检测代码是否发生变动，如果有变动，自动重启项目
+            所以当项目启动时，ready方法中定义的文件会被执行两次。
+
+        解决办法：启动项目的时候加上参数  --noreload ; pycharm配置中 “其它选项” 中填上参数 --noreload 即可
+
+        应用：如果在路由加载前 ready 方法导入的文件内 执行的代码向某个地方放入了一些值，那么路由加载的时候就可以去获取到这些值！
+
+************************************************************************************************************************
+——以上方法在django admin源码中可以找到：
+manage.py - execute_from_command_line(sys.argv) - 查看源码
+def execute_from_command_line(argv=None):
+    """Run a ManagementUtility."""
+    utility = ManagementUtility(argv)  实例化了一个对象
+    utility.execute()  执行对象的 execute 方法    - 查看源码
+直到:
+else:
+    django.setup()                               - 查看源码
+apps.populate(settings.INSTALLED_APPS)           - 查看源码
+for app_config in self.get_app_configs():  # 找到所有的APP的config类
+                app_config.ready()  # 执行里面的ready方法  默认没有写，但是自定义了之后便会执行这个方法
+            在自定义的 ready 方法中 调用了 autodiscover_modules 这个方法其实就是以字符串的形式去导入文件的方法
+            其中的 import_module('%s.%s' % (app_config.name, module_to_search)) 相当于导入语句 APP名称.文件名称
+************************************************************************************************************************
+
+    2. 单例模式
+        单 例 模式：一个 实例(对象) 方法 -- 永远实例化一个对象
+
+        区别：
+            多例模式：在同一个文件中定义一个Foo类，使用两个参数名进行实例化Foo类，那么在内存中会开辟两块内存空间供其使用
+            单例模式：python中如果已经导入过的文件再次被重新导入时，python不会再重新解释一次，而是选择从内存中直接将原来导入的值拿来使用。
+                     不管导入多少次，永远使用的是最开始创建的对象。 ———— 利用python文件导入的特性实现单例模式
+        注意：由于单例模式使用的是同一个内存地址，那么只要在任意多个位置导入了同一个类，那么在任意位置对该类的值进行了修改，则全局生效！
+
+    3. 路由分发的本质(include实现原理)
+        路由分发方式一：
+            系统根路由分发：path('index/', include(('app名称.urls', 'app名称'), name_space='命名空间'))
+            查看include源码返回值：return (urlconf_module, app_name, namespace) ——>
+            -> 是一个元祖，本质上将 include方法 替换为其返回值——元祖 拥有一样的效果；
+
+        由此可得路由分发方式二：
+            from app_Name import urls
+            urlpatterns = [
+                path('stark/', (urls, app_name, namespace)),
+                # 参数一：urls文件对象，通过此对象可以获取urls.patterns获取分发的路由
+                # 参数二：app名称
+                # 参数三：命名空间
+            ]
+            * 在源码的内部读取路由时：
+                如果第一个参数有：urls.patterns属性，那么子路由就从该属性中加载
+                如果第一个参数无：urls.patterns属性，那么子路由就是第一个参数
+
+        由源码可推导出方式三：
+            from app_Name1 import views as appName1View
+            from app_Name2 import views as appName2View
+            urlpatterns = [
+                path('stark/', ([
+                                path('index/', appName1View.Index.as_view(), name='url别名'),
+                                path('home/', appName1View.Home.as_view(), name='url别名'),
+                            ], 'app名称', '命名空间')),
+
+                path('web/', ([
+                                path('login/', appName2View.Login.as_view(), name='url别名'),
+                                path('logout/', appName2View.Logout.as_view(), name='url别名'),
+                            ], 'app名称', '命名空间')),
+            ]
+
+            这样就可以避免使用上include方法，也就不需要在app中生成urls.py文件
+
+
+
+
+
+
+
+
+
