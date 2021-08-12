@@ -1,10 +1,14 @@
+from django.contrib import admin
 from django.urls import path, re_path, include
-
 from django.views.static import serve
 from django.conf import settings as sys
 
-urlpatterns = [
+from app_stark.service.v1 import site
 
+
+urlpatterns = [
+    path('admin/', admin.site.urls),
+    path('stark/', site.urls),
     # 生产环境下静态文件代理
     re_path(r'^static/(?P<path>.*)$', serve, {'document_root': sys.STATIC_ROOT}),
 ]

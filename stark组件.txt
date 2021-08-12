@@ -80,11 +80,36 @@ for app_config in self.get_app_configs():  # 找到所有的APP的config类
 
             这样就可以避免使用上include方法，也就不需要在app中生成urls.py文件
 
+开始开发：
+一、项目准备
+    1. 数据表设计
+    2. 创建基础的业务表
+    3. 对以上业务表做增删改查操作
+        a. 分析
+            -为每张表创建4个url
+            -为每张表创建4个视图类
+            app_web/models.py
+                Depart
+                    app_web/depart/list/
+                    app_web/depart/add/
+                    app_web/depart/edit/(\d+)
+                    app_web/depart/del/(\d+)
+                User
+                    app_web/user/list/
+                    app_web/user/add/
+                    app_web/user/edit/(\d+)
+                    app_web/user/del/(\d+)
+            app_web2/models.py
+                host
+                    app_web2/host/list/
+                    app_web2/host/add/
+                    app_web2/host/edit/(\d+)
+                    app_web2/host/del/(\d+)
 
-
-
-
-
-
+        b. 为每个models类创建URL以及对应的视图类
+            - 动态生成URL
+            - 将视图提取到基类中
+            - URL分发的扩展(增加/减少) & 前(后)缀
+            - URL设置别名
 
 
