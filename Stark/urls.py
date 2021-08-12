@@ -1,17 +1,11 @@
-from django.contrib import admin
 from django.urls import path, re_path, include
-from app_stark import views as starkViews
-from app_web import views as webViews
+
+from django.views.static import serve
+from django.conf import settings as sys
 
 urlpatterns = [
-    # path('stark/', include('app_stark.urls', 'app_stark'), namespace='stark'),
-    # path('web/', include('app_web.urls', 'app_web'), namespace='web'),
-    # 以上两行代码实现了路由分发到app，可以替换成下面的方法，不需要再在app下创建urls.py文件了
-    path('stark/', ([
-        path('index/', starkViews.Index.as_view(), name='index')
-    ], 'app_stark', 'stark')),
 
-    path('web/', ([
-                      path('login/', webViews.Login.as_view(), name='login')
-                  ], 'app_web', 'web')),
+    # 生产环境下静态文件代理
+    re_path(r'^static/(?P<path>.*)$', serve, {'document_root': sys.STATIC_ROOT}),
 ]
+handler404 = 'app_web.views.page_not_found'  # handler404为固定写法，first.views.page_not_found为404处理函数的位置
