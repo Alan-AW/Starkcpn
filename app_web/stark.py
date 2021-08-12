@@ -34,11 +34,13 @@ from app_web import models
 
 
 class DepartHandler(StarkHandler):
-    pass
+    # 定制页面显示内容
+    list_display = ['id', 'title']
 
 
 class UserHandler(StarkHandler):
-    pass
+    # 定制页面显示内容
+    list_display = ['name', 'age', 'email']
 
 
 site.register(models.Depart, DepartHandler)

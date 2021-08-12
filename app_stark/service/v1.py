@@ -3,11 +3,28 @@ from django.shortcuts import render, redirect, HttpResponse
 
 
 class StarkHandler(object):
-    def __init__(self, model_class):
+    list_display = list()
+
+    def __init__(self, model_class, prev):
         self.model_class = model_class
+        self.prev = prev
 
     def changelist_view(self, request):
+        # 1. 处理表头 -- 使用models中的表类中字段的verbose_name
+        # 页面要显示的列
+        header_list = list()
+        for key in self.list_display:
+            # 用户访问的数据表
+            verbose_name = self.model_class._meta.get_field(key).verbose_name  # 获取数据表中指定name字段的verbos_name属性
+            header_list.append(verbose_name)
+        # 处理表的内容tbody
+        body_list = list()
         data_list = self.model_class.objects.all()
+        for row in data_list:
+            tr_list = list()
+            for key in self.list_display:
+                tr_list.append(getattr(row, key))
+            body_list.append(tr_list)
         return render(request, 'stark/changelist.html', locals())
 
     def add_view(self, request):
@@ -19,15 +36,53 @@ class StarkHandler(object):
     def delete_view(self, request, pk):
         return HttpResponse('删除页面')
 
+    def get_url_name(self, param):
+        """
+        判断url是否自定制了前缀，用于生成反向解析url别名
+        """
+        app_label, model_name = self.model_class._meta.app_label, self.model_class._meta.model_name
+        if self.prev:
+            return '%s_%s_%s_%s' % (app_label, model_name, self.prev, param)
+        return '%s_%s_%s' % (app_label, model_name, param)
+
+    @property
+    def get_list_url_name(self):
+        """
+        获取list页面的url别名
+        """
+        return self.get_url_name('list')
+
+    @property
+    def get_add_url_name(self):
+        """
+        获取添加页面的url别名
+        """
+        return self.get_url_name('add')
+
+    @property
+    def get_edit_url_name(self):
+        """
+        获取编辑页面的url别名
+        """
+        return self.get_url_name('edit')
+
+    @property
+    def get_delete_url_name(self):
+        """
+        获取删除页面的url别名
+        """
+        return self.get_url_name('delete')
+
     def get_urls(self):
         """
         默认生成4组增删改查功能路由。如需自定制功能路由可在APP下的stark中重写该方法实现自动定制
         """
+        app_label, model_name = self.model_class._meta.app_label, self.model_class._meta.model_name
         patterns = [
-            path('list/', self.changelist_view),
-            path('add/', self.add_view),
-            path('edit/(\d+)/', self.edit_view),
-            path('delete/(\d+)/', self.delete_view),
+            path('list/', self.changelist_view, name=self.get_list_url_name),
+            path('add/', self.add_view, name=self.get_add_url_name),
+            path('edit/(\d+)/', self.edit_view, name=self.get_edit_url_name),
+            path('delete/(\d+)/', self.delete_view, name=self.get_delete_url_name),
         ]
         patterns.extend(self.extra_urls())  # 此处不会直接调用本方法中的extra_urls，self代指的是APP中自定制的视图类，
         return patterns
@@ -36,7 +91,7 @@ class StarkHandler(object):
         """
         方便自定制增加功能路由预留位置
         """
-        return list()
+        return []
 
 
 class StarkSite(object):
@@ -54,7 +109,7 @@ class StarkSite(object):
         # 对于无须自定制视图操作，那么直接使用 StarkHandler 的视图操作
         if not handler_class:
             handler_class = StarkHandler
-        self._registry.append({'model_class': model_class, 'handler': handler_class(model_class), 'prev': prev})
+        self._registry.append({'model_class': model_class, 'handler': handler_class(model_class, prev), 'prev': prev})
         """
         这个操作的结果：
         _registry = [

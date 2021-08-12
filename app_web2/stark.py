@@ -35,11 +35,13 @@ from app_web2 import models
 
 
 class HostHandler(StarkHandler):
-    pass
+    # 定制页面显示内容
+    list_display = ['id', 'host', 'ip']
 
 
 class RoleHandler(StarkHandler):
-    pass
+    # 定制页面显示内容
+    list_display = ['id', 'title']
 
 
 site.register(models.Host, HostHandler)
