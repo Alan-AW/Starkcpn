@@ -28,20 +28,31 @@ class XXXXHandler(StarkHandler):
             return ......
 """
 
-
 from django.shortcuts import render, redirect, HttpResponse
 from app_stark.service.v1 import site, StarkHandler
 from app_web2 import models
 
 
 class HostHandler(StarkHandler):
-    # 定制页面显示内容
+    # 定制页面显示内容，list_display 中的项要与数据表的字段对应
     list_display = ['id', 'host', 'ip']
+    """
+        如果根据用户的不同来定制不同的列，那么直接写上这个方法，返回值内写入自定义展示的内容
+
+        def get_list_display(self):
+            return ['name']
+    """
 
 
 class RoleHandler(StarkHandler):
-    # 定制页面显示内容
+    # 定制页面显示内容，list_display 中的项要与数据表的字段对应
     list_display = ['id', 'title']
+    """
+        如果根据用户的不同来定制不同的列，那么直接写上这个方法，返回值内写入自定义展示的内容
+
+        def get_list_display(self):
+            return ['name']
+    """
 
 
 site.register(models.Host, HostHandler)

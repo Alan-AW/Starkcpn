@@ -119,3 +119,23 @@ for app_config in self.get_app_configs():  # 找到所有的APP的config类
             - 将url别名进行重新生成，使用公共的方法判断是否加了前缀
 
         c. 定制页面显示的列
+            - 完成列表页面定制的列知识点：
+                a. 在APP下的stark.py文件中自定义handler模型写入配置项：list_display = []
+                    列表中的项对应当前数据表中的字段。
+                b. 在v1.py中调用并且循环list_display，对数据展示的表头和内容进行获取到
+            - 对于没有自定义handler模型的数据表实现默认的展示列(展示对象)
+                做一个判断：
+                if self.list_display:
+                    ......
+                else:header_list.append(self.model_class._meta.model_name)  # 默认显示数据表类对象
+            - 为页面显示的列做一个自定制的预留扩展：APP下stark.py，相关的模型类中
+                def get_list_display(self):
+                    return ['自定义展示内容']
+            - 为页面提供自定义显示内容的函数(编辑与删除操作的生成)
+                    def display_edit(self, obj, is_header=None):
+                        """
+                        实现自定制操作栏(表头与内容)
+                        """
+                        if is_header:
+                            return '编辑'
+                        return mark_safe('<a href="https://www.baidu.com">编辑</a>')

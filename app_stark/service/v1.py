@@ -1,3 +1,4 @@
+from types import FunctionType  # 判断一个变量是否是函数
 from django.urls import path, re_path
 from django.shortcuts import render, redirect, HttpResponse
 
@@ -5,25 +6,51 @@ from django.shortcuts import render, redirect, HttpResponse
 class StarkHandler(object):
     list_display = list()
 
+    def get_list_display(self):
+        """
+        获取页面上应该显示的列；如果一张表要显示的字段非常的多，那么在handler对象中配置
+        list_display列表中的项需要配置很多字段，不方便，此功能做一个拓展
+        """
+        value = []
+        value.extend(self.list_display)
+        return value
+
     def __init__(self, model_class, prev):
         self.model_class = model_class
         self.prev = prev
 
     def changelist_view(self, request):
+        """
+        数据展示视图
+        """
         # 1. 处理表头 -- 使用models中的表类中字段的verbose_name
         # 页面要显示的列
+        list_display = self.get_list_display()
         header_list = list()
-        for key in self.list_display:
-            # 用户访问的数据表
-            verbose_name = self.model_class._meta.get_field(key).verbose_name  # 获取数据表中指定name字段的verbos_name属性
-            header_list.append(verbose_name)
-        # 处理表的内容tbody
+        if list_display:
+            for key_or_func in list_display:
+                if isinstance(key_or_func, FunctionType):  # 判断这里面的变量是否是一个函数
+                    verbose_name = key_or_func(self, obj=None, is_header=True)
+                # 获取数据表中指定xxxx字段的verbos_name属性
+                else:
+                    verbose_name = self.model_class._meta.get_field(key_or_func).verbose_name
+                header_list.append(verbose_name)
+        else:
+            header_list.append(self.model_class._meta.model_name)  # 默认显示数据表类对象
+        # 2. 处理表的内容tbody
         body_list = list()
         data_list = self.model_class.objects.all()
         for row in data_list:
             tr_list = list()
-            for key in self.list_display:
-                tr_list.append(getattr(row, key))
+            if list_display:
+                for key_or_func in list_display:
+                    if isinstance(key_or_func, FunctionType):
+                        tr_list.append(key_or_func(self, row, is_header=False))
+                    else:
+                        tr_list.append(getattr(row, key_or_func))
+                        # getattr() 方法默认需要传入两个参数，一个是obj对象，一个是字段名称；相当于用row对象点上key参数(User.objects.name/User.objects.age)
+            else:
+                tr_list.append(row)
             body_list.append(tr_list)
         return render(request, 'stark/changelist.html', locals())
 
@@ -91,7 +118,7 @@ class StarkHandler(object):
         """
         方便自定制增加功能路由预留位置
         """
-        return []
+        return list()
 
 
 class StarkSite(object):

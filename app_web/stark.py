@@ -29,18 +29,62 @@ class XXXXHandler(StarkHandler):
 """
 
 from django.shortcuts import render, redirect, HttpResponse
+from django.utils.safestring import mark_safe
 from app_stark.service.v1 import site, StarkHandler
 from app_web import models
 
 
 class DepartHandler(StarkHandler):
-    # 定制页面显示内容
-    list_display = ['id', 'title']
+    def display_edit(self, obj, is_header=None):
+        """
+        实现自定制操作栏(表头与内容)
+        """
+        if is_header:
+            return '编辑'
+        return mark_safe('<a href="https://www.baidu.com">编辑</a>')
+
+    def display_del(self, obj, is_header=None):
+        """
+        实现自定制删除栏(表头与内容)
+        """
+        if is_header:
+            return '删除'
+        return mark_safe('<a href="https://www.baidu.com">删除</a>')
+    # 定制页面显示内容，list_display 中的项要与数据表的字段对应
+    list_display = ['id', 'title', display_edit, display_del]
+    """
+        如果根据用户的不同来定制不同的列，那么直接写上这个方法，返回值内写入自定义展示的内容
+    
+        def get_list_display(self):
+            return ['name']
+    """
 
 
 class UserHandler(StarkHandler):
-    # 定制页面显示内容
-    list_display = ['name', 'age', 'email']
+    def display_edit(self, obj, is_header=None):
+        """
+        实现自定制操作栏(表头与内容)
+        """
+        if is_header:
+            return '编辑'
+        return mark_safe('<a href="https://www.baidu.com">编辑</a>')
+
+    def display_del(self, obj, is_header=None):
+        """
+        实现自定制删除栏(表头与内容)
+        """
+        if is_header:
+            return '删除'
+        return mark_safe('<a href="https://www.baidu.com">删除</a>')
+
+    # 定制页面显示内容，list_display 中的项要与数据表的字段对应
+    list_display = ['name', 'age', 'email', display_edit, display_del]
+    """
+        如果根据用户的不同来定制不同的列，那么直接写上这个方法，返回值内写入自定义展示的内容
+    
+        def get_list_display(self):
+            return ['name']
+    """
 
 
 site.register(models.Depart, DepartHandler)
