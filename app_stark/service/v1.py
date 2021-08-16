@@ -1,9 +1,31 @@
 from types import FunctionType  # 判断一个变量是否是函数
 from django.urls import path, re_path
+from django.utils.safestring import mark_safe
 from django.shortcuts import render, redirect, HttpResponse
+from django.urls import reverse
 
 
 class StarkHandler(object):
+    def display_edit(self, obj, is_header=None):
+        """
+        实现自定制操作栏(表头与内容)
+        """
+        if is_header:
+            return '编辑'
+        else:
+            name = '%s:%s' % (self.site.namespace, self.get_edit_url_name)  # 获取别名
+        return mark_safe('<a href="%s">编辑</a>' % reverse(name, args=(obj.pk,)))
+
+    def display_del(self, obj, is_header=None):
+        """
+        实现自定制删除栏(表头与内容)
+        """
+        if is_header:
+            return '删除'
+        else:
+            name = '%s:%s' % (self.site.namespace, self.get_delete_url_name)  # 获取别名
+        return mark_safe('<a href="%s">删除</a>' % reverse(name, args=(obj.pk,)))
+
     list_display = list()
 
     def get_list_display(self):
@@ -15,7 +37,8 @@ class StarkHandler(object):
         value.extend(self.list_display)
         return value
 
-    def __init__(self, model_class, prev):
+    def __init__(self, site, model_class, prev):
+        self.site = site
         self.model_class = model_class
         self.prev = prev
 
@@ -29,26 +52,29 @@ class StarkHandler(object):
         header_list = list()
         if list_display:
             for key_or_func in list_display:
-                if isinstance(key_or_func, FunctionType):  # 判断这里面的变量是否是一个函数
-                    verbose_name = key_or_func(self, obj=None, is_header=True)
-                # 获取数据表中指定xxxx字段的verbos_name属性
+                if isinstance(key_or_func, FunctionType):  # 判断这里面的变量是否是一个函数，如果是一个函数那么就去执行这个函数
+                    verbose_name = key_or_func(self, obj=None,
+                                               is_header=True)  # 调用执行函数self参数需要手动进行传递。（未实例化类执行类中的方法其实就是函数的调用）
                 else:
+                    # 获取数据表中指定xxxx字段的verbos_name属性
                     verbose_name = self.model_class._meta.get_field(key_or_func).verbose_name
                 header_list.append(verbose_name)
         else:
             header_list.append(self.model_class._meta.model_name)  # 默认显示数据表类对象
         # 2. 处理表的内容tbody
-        body_list = list()
         data_list = self.model_class.objects.all()
+        body_list = list()
         for row in data_list:
             tr_list = list()
             if list_display:
                 for key_or_func in list_display:
-                    if isinstance(key_or_func, FunctionType):
-                        tr_list.append(key_or_func(self, row, is_header=False))
+                    if isinstance(key_or_func, FunctionType):  # 判断这里面的变量是否是一个函数，如果是一个函数那么就去执行这个函数
+                        tr_list.append(key_or_func(self, obj=row, is_header=False))  # 调用执行函数self参数需要手动进行传递。
+                        # （未实例化类执行类中的方法其实就是函数的调用）
                     else:
                         tr_list.append(getattr(row, key_or_func))
-                        # getattr() 方法默认需要传入两个参数，一个是obj对象，一个是字段名称；相当于用row对象点上key参数(User.objects.name/User.objects.age)
+                        # getattr() 方法默认需要传入两个参数，一个是obj对象，一个是字段名称；
+                        # 相当于用row对象点上key参数(User.objects.name/User.objects.age)
             else:
                 tr_list.append(row)
             body_list.append(tr_list)
@@ -106,10 +132,10 @@ class StarkHandler(object):
         """
         app_label, model_name = self.model_class._meta.app_label, self.model_class._meta.model_name
         patterns = [
-            path('list/', self.changelist_view, name=self.get_list_url_name),
-            path('add/', self.add_view, name=self.get_add_url_name),
-            path('edit/(\d+)/', self.edit_view, name=self.get_edit_url_name),
-            path('delete/(\d+)/', self.delete_view, name=self.get_delete_url_name),
+            re_path('list/', self.changelist_view, name=self.get_list_url_name),
+            re_path('add/', self.add_view, name=self.get_add_url_name),
+            re_path('edit/(\d+)/$', self.edit_view, name=self.get_edit_url_name),
+            re_path('delete/(\d+)/$', self.delete_view, name=self.get_delete_url_name),
         ]
         patterns.extend(self.extra_urls())  # 此处不会直接调用本方法中的extra_urls，self代指的是APP中自定制的视图类，
         return patterns
@@ -123,6 +149,11 @@ class StarkHandler(object):
 
 class StarkSite(object):
     def __init__(self):
+        """
+       * _registry*: django启动时注册的列表
+        app_name: APP名称
+        namespace: namespace 值改变全局生效
+        """
         self._registry = list()
         self.app_name = 'app_stark'
         self.namespace = 'stark'
@@ -136,7 +167,11 @@ class StarkSite(object):
         # 对于无须自定制视图操作，那么直接使用 StarkHandler 的视图操作
         if not handler_class:
             handler_class = StarkHandler
-        self._registry.append({'model_class': model_class, 'handler': handler_class(model_class, prev), 'prev': prev})
+        self._registry.append({
+            'model_class': model_class,
+            'handler': handler_class(self, model_class, prev),
+            'prev': prev}
+        )
         """
         这个操作的结果：
         _registry = [
@@ -156,8 +191,8 @@ class StarkSite(object):
             handler = item['handler']
             prev = item['prev']
             applabel, modelname = model_class._meta.app_label, model_class._meta.model_name
-            # 默认生成业务逻辑的增删改查4个url(写死)
             """
+            # 默认生成业务逻辑的增删改查4个url(写死)
             patterns.append(path('%s/%s/list/' % (applabel, modelname), handler.changelist_view))
                 patterns.append(path('%s/%s/add/' % (applabel, modelname), handler.add_view))
                 patterns.append(path('%s/%s/edit/(\d+)/' % (applabel, modelname), handler.edit_view))
@@ -166,10 +201,10 @@ class StarkSite(object):
             # 再次进行路由分发，支持自定制生成不同的URL
             if prev:
                 # 自定制前缀
-                patterns.append(path('%s/%s/%s/' % (applabel, modelname, prev), (handler.get_urls(), None, None)))
+                patterns.append(re_path('%s/%s/%s/' % (applabel, modelname, prev), (handler.get_urls(), None, None)))
             else:
                 # 无须自定制前缀
-                patterns.append(path('%s/%s/' % (applabel, modelname), (handler.get_urls(), None, None)))
+                patterns.append(re_path('%s/%s/' % (applabel, modelname), (handler.get_urls(), None, None)))
         # patterns.append(path('index/', lambda request: HttpResponse('index')))
         # patterns.append(path('home/', lambda request: HttpResponse('home')),)
         return patterns

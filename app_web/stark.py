@@ -29,59 +29,33 @@ class XXXXHandler(StarkHandler):
 """
 
 from django.shortcuts import render, redirect, HttpResponse
+from django.urls import reverse
 from django.utils.safestring import mark_safe
 from app_stark.service.v1 import site, StarkHandler
 from app_web import models
 
 
 class DepartHandler(StarkHandler):
-    def display_edit(self, obj, is_header=None):
-        """
-        实现自定制操作栏(表头与内容)
-        """
-        if is_header:
-            return '编辑'
-        return mark_safe('<a href="https://www.baidu.com">编辑</a>')
-
-    def display_del(self, obj, is_header=None):
-        """
-        实现自定制删除栏(表头与内容)
-        """
-        if is_header:
-            return '删除'
-        return mark_safe('<a href="https://www.baidu.com">删除</a>')
     # 定制页面显示内容，list_display 中的项要与数据表的字段对应
-    list_display = ['id', 'title', display_edit, display_del]
+    list_display = ['id', 'title']
     """
         如果根据用户的不同来定制不同的列，那么直接写上这个方法，返回值内写入自定义展示的内容
-    
         def get_list_display(self):
             return ['name']
     """
 
 
 class UserHandler(StarkHandler):
-    def display_edit(self, obj, is_header=None):
-        """
-        实现自定制操作栏(表头与内容)
-        """
+    def display_sex(self, obj, is_header=None):
         if is_header:
-            return '编辑'
-        return mark_safe('<a href="https://www.baidu.com">编辑</a>')
-
-    def display_del(self, obj, is_header=None):
-        """
-        实现自定制删除栏(表头与内容)
-        """
-        if is_header:
-            return '删除'
-        return mark_safe('<a href="https://www.baidu.com">删除</a>')
+            return '性别'
+        else:
+            return obj.get_sex_display()  # choices内容： get_字段名_display() 直接获取到字段的中文释义
 
     # 定制页面显示内容，list_display 中的项要与数据表的字段对应
-    list_display = ['name', 'age', 'email', display_edit, display_del]
+    list_display = ['name', display_sex, 'age', 'email', StarkHandler.display_edit, StarkHandler.display_del]
     """
         如果根据用户的不同来定制不同的列，那么直接写上这个方法，返回值内写入自定义展示的内容
-    
         def get_list_display(self):
             return ['name']
     """
