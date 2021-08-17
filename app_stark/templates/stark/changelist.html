@@ -1,32 +1,28 @@
-{% load static %}
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>STARK|数据列表</title>
-    <link rel="stylesheet" href="{% static 'stark/stark.css' %}">
-</head>
-<body>
-<h1>数据列表</h1>
-<table border="1">
-    <thead>
-    <tr>
-        {% for item in header_list %}
-            <th>{{ item }}</th>
-        {% endfor %}
-    </tr>
-    </thead>
-    <tbody>
-    {% for row in body_list %}
-        <tr>
-            {% for ele in row %}
-                <td>{{ ele }}</td>
-            {% endfor %}
-        </tr>
-    {% endfor %}
-
-    </tbody>
-</table>
-</body>
-<script src="{% static 'stark/stark.js' %}"></script>
-</html>
+{% extends 'layout.html' %}
+{% block content %}
+	<div class="luffy-container">
+		<table class="table table-bordered">
+			<thead>
+			<tr>
+				{% for item in header_list %}
+					<th>{{ item }}</th>
+				{% endfor %}
+			</tr>
+			</thead>
+			<tbody>
+			{% for row in body_list %}
+				<tr>
+					{% for ele in row %}
+						<td>{{ ele }}</td>
+					{% endfor %}
+				</tr>
+			{% endfor %}
+			</tbody>
+		</table>
+		<nav class="pagination">
+			<ul>
+				{{ pager.page_html|safe }}
+			</ul>
+		</nav>
+	</div>
+{% endblock %}

@@ -3,9 +3,15 @@ from django.urls import path, re_path
 from django.utils.safestring import mark_safe
 from django.shortcuts import render, redirect, HttpResponse
 from django.urls import reverse
+from app_stark.utils.pageination import Pagination
 
 
 class StarkHandler(object):
+    def __init__(self, site, model_class, prev):
+        self.site = site
+        self.model_class = model_class
+        self.prev = prev
+
     def display_edit(self, obj, is_header=None):
         """
         实现自定制操作栏(表头与内容)
@@ -37,16 +43,27 @@ class StarkHandler(object):
         value.extend(self.list_display)
         return value
 
-    def __init__(self, site, model_class, prev):
-        self.site = site
-        self.model_class = model_class
-        self.prev = prev
-
     def changelist_view(self, request):
         """
         数据展示视图
         """
-        # 1. 处理表头 -- 使用models中的表类中字段的verbose_name
+        ########## 1 处理分页 ##################
+        # 获取数据库中的数据
+        # 根据URL中的page参数计算出数据的索引位置
+        # 生成HTML的页码
+        query_paramas = request.GET.copy()  # 拷贝URL地址get参数
+        query_paramas._mutable = True  # 默认禁止修改get参数变为可修改
+        pager = Pagination(
+            current_page=request.GET.get('page'),  # 获取到分页
+            all_count=self.model_class.objects.all().count(),  # 统计数据库数量
+            base_url=request.path_info,  # 当前访问的URL
+            query_params=query_paramas,  # 原搜索条件
+            per_page=10,  # 每页显示的条数(默认显示10条)
+        )
+        data_list = self.model_class.objects.all()[pager.start:pager.end]  # 计算出对应的页的数据
+
+        ########## 2 处理表格 ##################
+        # 2.1. 处理表头 -- 使用models中的表类中字段的verbose_name
         # 页面要显示的列
         list_display = self.get_list_display()
         header_list = list()
@@ -61,8 +78,7 @@ class StarkHandler(object):
                 header_list.append(verbose_name)
         else:
             header_list.append(self.model_class._meta.model_name)  # 默认显示数据表类对象
-        # 2. 处理表的内容tbody
-        data_list = self.model_class.objects.all()
+        # 2.2. 处理表的内容tbody
         body_list = list()
         for row in data_list:
             tr_list = list()
@@ -224,9 +240,11 @@ def get_choices_text(title, field):
     title： 表格显示的表头
     field： 数据库的字段名称
     """
+
     def inner(self, obj=None, is_header=None):
         if is_header:
             return title
         method = 'get_%s_display' % field  # choices内容： get_字段名_display() 直接获取到字段的中文释义
         return getattr(obj, method)()
+
     return inner
