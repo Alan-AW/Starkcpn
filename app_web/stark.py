@@ -31,7 +31,7 @@ class XXXXHandler(StarkHandler):
 from django.shortcuts import render, redirect, HttpResponse
 from django.urls import reverse
 from django.utils.safestring import mark_safe
-from app_stark.service.v1 import site, StarkHandler
+from app_stark.service.v1 import site, StarkHandler, get_choices_text
 from app_web import models
 
 
@@ -46,18 +46,14 @@ class DepartHandler(StarkHandler):
 
 
 class UserHandler(StarkHandler):
-    def display_sex(self, obj, is_header=None):
-        if is_header:
-            return '性别'
-        else:
-            return obj.get_sex_display()  # choices内容： get_字段名_display() 直接获取到字段的中文释义
-
     # 定制页面显示内容，list_display 中的项要与数据表的字段对应
-    list_display = ['name', display_sex, 'age', 'email', StarkHandler.display_edit, StarkHandler.display_del]
+    list_display = ['name', get_choices_text('性别', 'sex'), 'age', 'email', StarkHandler.display_edit, StarkHandler.display_del]
     """
-        如果根据用户的不同来定制不同的列，那么直接写上这个方法，返回值内写入自定义展示的内容
-        def get_list_display(self):
-            return ['name']
+        * 如果根据用户的不同来定制不同的列，那么直接写上这个方法，返回值内写入自定义展示的内容
+            def get_list_display(self):
+                return ['name']
+        
+        * 对于表中的choice字段，直接调用 get_choices_text('表头', '字段名') 即可生效。
     """
 
 

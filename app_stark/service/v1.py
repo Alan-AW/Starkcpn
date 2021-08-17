@@ -132,8 +132,8 @@ class StarkHandler(object):
         """
         app_label, model_name = self.model_class._meta.app_label, self.model_class._meta.model_name
         patterns = [
-            re_path('list/', self.changelist_view, name=self.get_list_url_name),
-            re_path('add/', self.add_view, name=self.get_add_url_name),
+            path('list/', self.changelist_view, name=self.get_list_url_name),
+            path('add/', self.add_view, name=self.get_add_url_name),
             re_path('edit/(\d+)/$', self.edit_view, name=self.get_edit_url_name),
             re_path('delete/(\d+)/$', self.delete_view, name=self.get_delete_url_name),
         ]
@@ -201,10 +201,10 @@ class StarkSite(object):
             # 再次进行路由分发，支持自定制生成不同的URL
             if prev:
                 # 自定制前缀
-                patterns.append(re_path('%s/%s/%s/' % (applabel, modelname, prev), (handler.get_urls(), None, None)))
+                patterns.append(path('%s/%s/%s/' % (applabel, modelname, prev), (handler.get_urls(), None, None)))
             else:
                 # 无须自定制前缀
-                patterns.append(re_path('%s/%s/' % (applabel, modelname), (handler.get_urls(), None, None)))
+                patterns.append(path('%s/%s/' % (applabel, modelname), (handler.get_urls(), None, None)))
         # patterns.append(path('index/', lambda request: HttpResponse('index')))
         # patterns.append(path('home/', lambda request: HttpResponse('home')),)
         return patterns
@@ -215,3 +215,18 @@ class StarkSite(object):
 
 
 site = StarkSite()
+
+
+def get_choices_text(title, field):
+    """
+    对stark组件中定义列的显示时，choice显示的中文信息，直接调用此方法
+    当数据库多字段为choices时使用；
+    title： 表格显示的表头
+    field： 数据库的字段名称
+    """
+    def inner(self, obj=None, is_header=None):
+        if is_header:
+            return title
+        method = 'get_%s_display' % field  # choices内容： get_字段名_display() 直接获取到字段的中文释义
+        return getattr(obj, method)()
+    return inner
