@@ -38,6 +38,8 @@ from app_web import models
 class DepartHandler(StarkHandler):
     # 定制页面显示内容，list_display 中的项要与数据表的字段对应
     list_display = ['id', 'title']
+    has_add_btn = True  # 定制是否显示添加按钮
+
     """
         如果根据用户的不同来定制不同的列，那么直接写上这个方法，返回值内写入自定义展示的内容
         def get_list_display(self):
@@ -55,6 +57,7 @@ class UserHandler(StarkHandler):
         
         * 对于表中的choice字段，直接调用 get_choices_text('表头', '字段名') 即可生效。
     """
+    has_add_btn = False  # 定制是否显示添加按钮
 
 
 site.register(models.Depart, DepartHandler)

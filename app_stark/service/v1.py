@@ -32,7 +32,17 @@ class StarkHandler(object):
             name = '%s:%s' % (self.site.namespace, self.get_delete_url_name)  # 获取别名
         return mark_safe('<a href="%s">删除</a>' % reverse(name, args=(obj.pk,)))
 
-    list_display = list()
+    list_display = list()  # 自定义列的展示内容
+
+    has_add_btn = True  # 是否显示 添加 按钮
+
+    def get_add_btn(self):
+        """
+        预留权限判断的钩子函数：是否显示添加按钮
+        """
+        if self.has_add_btn:
+            return '<a href="%s" class="btn btn-primary">添加</a>' % ('')
+        return ''
 
     def get_list_display(self):
         """
@@ -94,6 +104,10 @@ class StarkHandler(object):
             else:
                 tr_list.append(row)
             body_list.append(tr_list)
+
+        ########## 3 处理添加按钮 ##################
+        add_btn = self.get_add_btn()
+
         return render(request, 'stark/changelist.html', locals())
 
     def add_view(self, request):
