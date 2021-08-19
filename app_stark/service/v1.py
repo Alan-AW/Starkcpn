@@ -1,8 +1,11 @@
+import functools
 from types import FunctionType  # 判断一个变量是否是函数
 from django.urls import path, re_path
 from django.utils.safestring import mark_safe
 from django.shortcuts import render, redirect, HttpResponse
 from django.urls import reverse
+from django.http import QueryDict
+from django import forms
 from app_stark.utils.pageination import Pagination
 
 
@@ -11,6 +14,9 @@ class StarkHandler(object):
         self.site = site
         self.model_class = model_class
         self.prev = prev
+        self.request = None
+    list_display = list()  # 自定义列的展示内容
+    has_add_btn = True  # 是否显示 添加 按钮
 
     def display_edit(self, obj, is_header=None):
         """
@@ -32,17 +38,27 @@ class StarkHandler(object):
             name = '%s:%s' % (self.site.namespace, self.get_delete_url_name)  # 获取别名
         return mark_safe('<a href="%s">删除</a>' % reverse(name, args=(obj.pk,)))
 
-    list_display = list()  # 自定义列的展示内容
-
-    has_add_btn = True  # 是否显示 添加 按钮
-
     def get_add_btn(self):
         """
         预留权限判断的钩子函数：是否显示添加按钮
         """
+
         if self.has_add_btn:
-            return '<a href="%s" class="btn btn-primary">添加</a>' % ('')
-        return ''
+            # 根据别名反向生成URL
+            add_url = self.reverse_add_url()
+            return '<a href="%s" class="btn btn-primary">添加</a>' % add_url
+        return None
+
+    def get_model_form_class(self):
+        """
+        为所有视图函数提供modelform的编辑，动态获取当前需要操作的视图类
+        """
+        class DynamicModelForm(StarkModelForm):
+            class Meta:
+                model = self.model_class
+                fields = '__all__'
+
+        return DynamicModelForm
 
     def get_list_display(self):
         """
@@ -111,6 +127,10 @@ class StarkHandler(object):
         return render(request, 'stark/changelist.html', locals())
 
     def add_view(self, request):
+        model_form_class = self.get_model_form_class()
+        if request.method == 'GET':
+            form = model_form_class()
+            return render(request, 'stark/change.html', locals())
         return HttpResponse('添加页面')
 
     def edit_view(self, request, pk):
@@ -156,17 +176,47 @@ class StarkHandler(object):
         """
         return self.get_url_name('delete')
 
+    def reverse_add_url(self):
+        # 保留原搜索条件进行跳转回list页面
+        name = '%s:%s' % (self.site.namespace, self.get_add_url_name)
+        base_url = reverse(name)
+        if not self.request.GET:
+            add_url = base_url
+        else:
+            # 原搜索条件携带返回
+            param = self.request.GET.urlencode()
+            new_query_dict = QueryDict(mutable=True)
+            new_query_dict['_filter'] = param
+            add_url = '%s?%s' % (base_url, new_query_dict.urlencode())
+        return add_url
+
+    def wrapper(self, func):  # request 参数装饰器
+        """
+        在get_urls中路由请求进来，会首先执行wrapper装饰器，由于每个视图都需要
+        用到self.request参数，所以在此统一赋值，这样就不用每个视图函数内都写上
+        self.request = request了，并且在后续的开发过程中如果需要在进入视图函数
+        之前做其他的操作都可以写到inner内部进行处理，APP中也可以自定义本装饰器
+        """
+
+        @functools.wraps(func)  # 装饰器尽量写上这个方法-保留原函数的携带原参数信息
+        def inner(request, *args, **kwargs):
+            self.request = request
+            return func(request, *args, **kwargs)
+
+        return inner
+
     def get_urls(self):
         """
         默认生成4组增删改查功能路由。如需自定制功能路由可在APP下的stark中重写该方法实现自动定制
         """
         app_label, model_name = self.model_class._meta.app_label, self.model_class._meta.model_name
         patterns = [
-            path('list/', self.changelist_view, name=self.get_list_url_name),
-            path('add/', self.add_view, name=self.get_add_url_name),
-            re_path('edit/(\d+)/$', self.edit_view, name=self.get_edit_url_name),
-            re_path('delete/(\d+)/$', self.delete_view, name=self.get_delete_url_name),
+            path('list/', self.wrapper(self.changelist_view), name=self.get_list_url_name),
+            path('add/', self.wrapper(self.add_view), name=self.get_add_url_name),
+            re_path('edit/(\d+)/$', self.wrapper(self.edit_view), name=self.get_edit_url_name),
+            re_path('delete/(\d+)/$', self.wrapper(self.delete_view), name=self.get_delete_url_name),
         ]
+        # 将用户自定制的URL路由(extend)扩展到全局路由中，而不是将用户自定制的路由列表(append)追加进来
         patterns.extend(self.extra_urls())  # 此处不会直接调用本方法中的extra_urls，self代指的是APP中自定制的视图类，
         return patterns
 
@@ -249,8 +299,9 @@ site = StarkSite()
 
 def get_choices_text(title, field):
     """
-    对stark组件中定义列的显示时，choice显示的中文信息，直接调用此方法
     当数据库多字段为choices时使用；
+    对stark组件中定义列的显示时，choice显示的中文信息，直接调用此方法
+    添加到display_list中传入参数即可：
     title： 表格显示的表头
     field： 数据库的字段名称
     """
@@ -262,3 +313,14 @@ def get_choices_text(title, field):
         return getattr(obj, method)()
 
     return inner
+
+
+class StarkModelForm(forms.ModelForm):
+    """
+    为每个编辑视图添加统一的样式
+    """
+
+    def __init__(self, *args, **kwargs):
+        super(StarkModelForm, self).__init__(*args, **kwargs)
+        for name, field in self.fields.items():
+            field.widget.attrs['class'] = 'form-control'

@@ -1,5 +1,6 @@
 from pathlib import Path
 import os
+from django.views import static
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -88,9 +89,9 @@ USE_L10N = True
 USE_TZ = True
 
 STATIC_URL = '/static/'
-# STATIC_ROOT = os.path.join(BASE_DIR, 'static')
-STATICFILES_DIRS = [
-    os.path.join(BASE_DIR, 'static')
-]
+STATIC_ROOT = os.path.join(BASE_DIR, 'static')
+# STATICFILES_DIRS = [
+#     os.path.join(BASE_DIR, '/app_stark/static/stark/')
+# ]
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

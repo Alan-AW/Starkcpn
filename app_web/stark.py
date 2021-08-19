@@ -57,7 +57,7 @@ class UserHandler(StarkHandler):
         
         * 对于表中的choice字段，直接调用 get_choices_text('表头', '字段名') 即可生效。
     """
-    has_add_btn = False  # 定制是否显示添加按钮
+    has_add_btn = True  # 定制是否显示添加按钮
 
 
 site.register(models.Depart, DepartHandler)

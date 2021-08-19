@@ -11,6 +11,8 @@
 	<script src="https://cdn.staticfile.org/twitter-bootstrap/3.3.7/js/bootstrap.min.js"></script>
 	<link href="https://cdn.bootcss.com/font-awesome/5.13.0/css/all.css" rel="stylesheet">
 	<link rel="stylesheet" href="{% static 'stark/css/layout.css' %}">
+	<link rel="stylesheet" href="{% static 'stark/css/nav.css' %}">
+	<link rel="stylesheet" href="{% static 'stark/css/commons.css' %}">
 	{% block css %}{% endblock %}
 </head>
 <body>
@@ -18,7 +20,6 @@
 	<div class="nav">
 		<div class="logo-area left ">
 			<a href="#">
-				<img class="logo" src="{% static 'stark/imgs/logo.svg' %}">
 				<span style="font-size: 18px;">Stark组件 </span>
 			</a>
 		</div>
@@ -39,9 +40,6 @@
 
 		<div class="right-menu right clearfix">
 			<div class="user-info right">
-				<a href="#" class="avatar">
-					<img class="img-circle" src="{% static 'stark/imgs/default.png' %}">
-				</a>
 
 				<div class="more-info">
 					<a href="#" class="more-item">个人信息</a>
@@ -79,11 +77,6 @@
 		{% block content %} {% endblock %}
 	</div>
 </div>
-
-
-<script src="{% static 'stark/js/jquery-3.3.1.min.js' %} "></script>
-<script src="{% static 'stark/plugins/bootstrap/js/bootstrap.js' %} "></script>
-
 {% block js %} {% endblock %}
 </body>
 </html>
