@@ -15,8 +15,13 @@ class StarkHandler(object):
         self.model_class = model_class
         self.prev = prev
         self.request = None
+
     list_display = list()  # 自定义列的展示内容
     has_add_btn = True  # 是否显示 添加 按钮
+    # 配置文件，自定义页面展示的字段，
+    # 如果没有自定义字段信息，那么就使用默认的展示数据表中的所有字段
+    # 如果需要自定义，那么在APP下的XXXHandler类中进行自定义
+    model_form_class = None
 
     def display_edit(self, obj, is_header=None):
         """
@@ -25,8 +30,8 @@ class StarkHandler(object):
         if is_header:
             return '编辑'
         else:
-            name = '%s:%s' % (self.site.namespace, self.get_edit_url_name)  # 获取别名
-        return mark_safe('<a href="%s">编辑</a>' % reverse(name, args=(obj.pk,)))
+            edit_url = self.reverse_edit_url(pk=obj.pk)
+        return mark_safe('<a href="%s">编辑</a>' % edit_url)
 
     def display_del(self, obj, is_header=None):
         """
@@ -35,8 +40,8 @@ class StarkHandler(object):
         if is_header:
             return '删除'
         else:
-            name = '%s:%s' % (self.site.namespace, self.get_delete_url_name)  # 获取别名
-        return mark_safe('<a href="%s">删除</a>' % reverse(name, args=(obj.pk,)))
+            delete_url = self.reverse_delete_url(pk=obj.pk)
+            return mark_safe('<a href="%s">删除</a>' % delete_url)
 
     def get_add_btn(self):
         """
@@ -51,14 +56,19 @@ class StarkHandler(object):
 
     def get_model_form_class(self):
         """
-        为所有视图函数提供modelform的编辑，动态获取当前需要操作的视图类
+        为所有视图函数提供modelform的编辑，
         """
-        class DynamicModelForm(StarkModelForm):
-            class Meta:
-                model = self.model_class
-                fields = '__all__'
+        if self.model_form_class:
+            # 　优先读取用户自定义的类，
+            # 如果没有自定义，那么就使用默认的展示所有字段，进行编辑
+            return self.model_form_class
+        else:
+            class DynamicModelForm(StarkModelForm):
+                class Meta:
+                    model = self.model_class  # 动态获取当前需要操作的视图类
+                    fields = '__all__'
 
-        return DynamicModelForm
+            return DynamicModelForm
 
     def get_list_display(self):
         """
@@ -126,18 +136,48 @@ class StarkHandler(object):
 
         return render(request, 'stark/changelist.html', locals())
 
+    def save(self, form, is_update=False):
+        """
+        预留钩子函数，当开发过程中自定制了页面编辑的字段之后，如果减少了某些字段的编辑，
+        有可能导致modelform  save 的时候报错，缺少字段，那么就可以在APP下的XXXHandler类中
+        重写此方法进行自定制，将没有进行展示编辑的字段在保存之前设置一个默认值。
+        """
+        form.save()
+
     def add_view(self, request):
         model_form_class = self.get_model_form_class()
         if request.method == 'GET':
             form = model_form_class()
             return render(request, 'stark/change.html', locals())
-        return HttpResponse('添加页面')
+        form = model_form_class(data=request.POST)
+        if form.is_valid():
+            self.save(form, is_update=False)
+            # 保存成功后跳转回list页面
+            return redirect(self.reverse_list_url())
+        return render(request, 'stark/change.html', locals())
 
     def edit_view(self, request, pk):
-        return HttpResponse('编辑页面')
+        current_obj = self.model_class.objects.filter(pk=pk).first()
+        if not current_obj:
+            return HttpResponse('修改的数据不存在！')
+        model_form_class = self.get_model_form_class()
+        if request.method == 'GET':
+            form = model_form_class(instance=current_obj)
+            return render(request, 'stark/change.html', locals())
+        form = model_form_class(data=request.POST, instance=current_obj)
+        if form.is_valid():
+            self.save(form, is_update=False)
+            # 保存成功后跳转回list页面
+            return redirect(self.reverse_list_url())
+        return render(request, 'stark/change.html', locals())
 
     def delete_view(self, request, pk):
-        return HttpResponse('删除页面')
+        return_url = self.reverse_list_url()
+        if request.method == 'GET':
+            cancelUrl = return_url
+            return render(request, 'stark/delete.html', locals())
+        self.model_class.objects.filter(pk=pk).delete()
+        return redirect(return_url)
 
     def get_url_name(self, param):
         """
@@ -177,7 +217,7 @@ class StarkHandler(object):
         return self.get_url_name('delete')
 
     def reverse_add_url(self):
-        # 保留原搜索条件进行跳转回list页面
+        # 保留原搜索条件进行跳转到添加页面
         name = '%s:%s' % (self.site.namespace, self.get_add_url_name)
         base_url = reverse(name)
         if not self.request.GET:
@@ -189,6 +229,45 @@ class StarkHandler(object):
             new_query_dict['_filter'] = param
             add_url = '%s?%s' % (base_url, new_query_dict.urlencode())
         return add_url
+
+    def reverse_edit_url(self, *args, **kwargs):
+        # 保留原搜索条件进行跳转到编辑页面
+        name = '%s:%s' % (self.site.namespace, self.get_edit_url_name)
+        base_url = reverse(name, args=args, kwargs=kwargs)
+        if not self.request.GET:
+            edit_url = base_url
+        else:
+            # 原搜索条件携带返回
+            param = self.request.GET.urlencode()
+            new_query_dict = QueryDict(mutable=True)
+            new_query_dict['_filter'] = param
+            edit_url = '%s?%s' % (base_url, new_query_dict.urlencode())
+        return edit_url
+
+    def reverse_delete_url(self, *args, **kwargs):
+        # 保留原搜索条件进行跳转到删除页面
+        name = '%s:%s' % (self.site.namespace, self.get_delete_url_name)
+        base_url = reverse(name, args=args, kwargs=kwargs)
+        if not self.request.GET:
+            delete_url = base_url
+        else:
+            # 原搜索条件携带返回
+            param = self.request.GET.urlencode()
+            new_query_dict = QueryDict(mutable=True)
+            new_query_dict['_filter'] = param
+            delete_url = '%s?%s' % (base_url, new_query_dict.urlencode())
+        return delete_url
+
+    def reverse_list_url(self):
+        # 取消删除操作或者编辑完毕之后跳转回list页面携带参数返回的URL
+        name = '%s:%s' % (self.site.namespace, self.get_list_url_name)
+        base_url = reverse(name)
+        params = self.request.GET.get('_filter')
+        if not params:
+            list_url = base_url
+        else:
+            list_url = '%s?%s' % (base_url, params)
+        return list_url
 
     def wrapper(self, func):  # request 参数装饰器
         """
@@ -213,8 +292,8 @@ class StarkHandler(object):
         patterns = [
             path('list/', self.wrapper(self.changelist_view), name=self.get_list_url_name),
             path('add/', self.wrapper(self.add_view), name=self.get_add_url_name),
-            re_path('edit/(\d+)/$', self.wrapper(self.edit_view), name=self.get_edit_url_name),
-            re_path('delete/(\d+)/$', self.wrapper(self.delete_view), name=self.get_delete_url_name),
+            re_path('edit/(?P<pk>\d+)/$', self.wrapper(self.edit_view), name=self.get_edit_url_name),
+            re_path('delete/(?P<pk>\d+)/$', self.wrapper(self.delete_view), name=self.get_delete_url_name),
         ]
         # 将用户自定制的URL路由(extend)扩展到全局路由中，而不是将用户自定制的路由列表(append)追加进来
         patterns.extend(self.extra_urls())  # 此处不会直接调用本方法中的extra_urls，self代指的是APP中自定制的视图类，
