@@ -7,6 +7,7 @@ from django.urls import reverse
 from django.http import QueryDict
 from django import forms
 from app_stark.utils.pageination import Pagination
+from django.db.models import Q
 
 
 class StarkHandler(object):
@@ -18,10 +19,22 @@ class StarkHandler(object):
 
     list_display = list()  # 自定义列的展示内容
     has_add_btn = True  # 是否显示 添加 按钮
+    order_list = list()  # 排序规则
+    search_list = list()  # 默认查询方式
     # 配置文件，自定义页面展示的字段，
     # 如果没有自定义字段信息，那么就使用默认的展示数据表中的所有字段
     # 如果需要自定义，那么在APP下的XXXHandler类中进行自定义
     model_form_class = None
+
+    def display_checkbox(self, obj, is_header=None):
+        """
+        批量操作的checkbox展示
+        """
+        if is_header:
+            return '选择'
+        else:
+            edit_url = self.reverse_edit_url(pk=obj.pk)
+        return mark_safe('<input type="checkbox" name="pk" value="%s" />' % obj.pk)
 
     def display_edit(self, obj, is_header=None):
         """
@@ -54,6 +67,19 @@ class StarkHandler(object):
             return '<a href="%s" class="btn btn-primary">添加</a>' % add_url
         return None
 
+    def get_order_list(self):
+        """
+        默认数据展示的排序为 -id
+        """
+        return self.order_list or ['-id']
+
+    def get_search_list(self):
+        """
+        默认的模糊搜索范围为空，不展示搜索框，
+        APP中进行配置之后便按照设置的列进行搜索（也就是字段）
+        """
+        return self.search_list
+
     def get_model_form_class(self):
         """
         为所有视图函数提供modelform的编辑，
@@ -83,20 +109,34 @@ class StarkHandler(object):
         """
         数据展示视图
         """
+        ##########  获取模糊搜索范围 ##################
+        search_list = self.get_search_list()
+        # 获取用户搜索关键字
+        search_value = request.GET.get('q', '')
+        # 构造搜索条件 -- Q 用于构造负责ORM查询条件 默认的filter查询在多条件情况下是通过and连接的，不符合逻辑需求
+        conn = Q()
+        conn.connector = 'OR'
+        if search_value:
+            for item in search_list:
+                conn.children.append((item, search_value))
+        ##########  获取排序规则 ##################
+        order = self.get_order_list()  # 如果search_list没有值，默认不显示搜索框
         ########## 1 处理分页 ##################
         # 获取数据库中的数据
+        queryset = self.model_class.objects.filter(conn).order_by(*order)
         # 根据URL中的page参数计算出数据的索引位置
         # 生成HTML的页码
         query_paramas = request.GET.copy()  # 拷贝URL地址get参数
         query_paramas._mutable = True  # 默认禁止修改get参数变为可修改
+        all_count = queryset.count()
         pager = Pagination(
             current_page=request.GET.get('page'),  # 获取到分页
-            all_count=self.model_class.objects.all().count(),  # 统计数据库数量
+            all_count=all_count,  # 统计数据库数量
             base_url=request.path_info,  # 当前访问的URL
             query_params=query_paramas,  # 原搜索条件
             per_page=10,  # 每页显示的条数(默认显示10条)
         )
-        data_list = self.model_class.objects.all()[pager.start:pager.end]  # 计算出对应的页的数据
+        data_list = queryset[pager.start:pager.end]  # 计算出对应的页的数据
 
         ########## 2 处理表格 ##################
         # 2.1. 处理表头 -- 使用models中的表类中字段的verbose_name
