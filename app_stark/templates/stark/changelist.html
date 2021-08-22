@@ -1,64 +1,74 @@
 {% extends 'layout.html' %}
 {% block content %}
-	<div class="luffy-container">
-		<!-- 批量操作下拉框 -->
-		<div style="float: left;margin: 20px 20px 0 0;">
-			<div class="form-inline">
-				<div class="form-group">
-					<select class="form-control">
-						<option value="">请选择操作</option>
-						<option value="">批量修改</option>
-						<option value="">批量删除</option>
-					</select>
-					<input type="button" value="执行" class="btn btn-primary"/>
-				</div>
-			</div>
-		</div>
+    <div class="luffy-container">
+        <!-- 组合搜索 -->
+        <div class="find_all">
 
-		<!-- 添加按钮 -->
-		{% if add_btn %}
-			<div style="margin: 20px 0;float: left;">{{ add_btn|safe }}</div>
-		{% endif %}
+        </div>
+        <!-- 搜索框 -->
+        {% if search_list %}
+            <div style="float: right;margin: 20px 0;">
+                <form method="get" class="form-inline">
+                    <div class="form-group">
+                        <input type="text" class="form-control" name="q" value="{{ search_value }}"
+                               placeholder="输入关键字搜索">
+                        <button class="btn btn-primary" type="submit">
+                            <i class="fa fa-search" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        {% endif %}
 
-		<!-- 搜索框 -->
-		{% if search_list %}
-			<div style="float: right;margin: 20px 0;">
-				<form method="get" class="form-inline">
-					<div class="form-group">
-						<input type="text" class="form-control" name="q" value="{{ search_value }}"
-						       placeholder="输入关键字搜索">
-						<button class="btn btn-primary" type="submit">
-							<i class="fa fa-search" aria-hidden="true"></i>
-						</button>
-					</div>
-				</form>
-			</div>
-		{% endif %}
+        <form method="post">
+            {% csrf_token %}
+            <!-- 批量操作下拉框 -->
+            {% if action_dict %}
+                <div style="float: left;margin: 20px 20px 0 0;">
+                    <div class="form-inline">
+                        <div class="form-group">
+                            <select class="form-control" name="action">
+                                <option value="">请选择操作</option>
+                                {% for func_name, func_text in action_dict.items %}
+                                    <option value="{{ func_name }}">{{ func_text }}</option>
+                                {% endfor %}
+                            </select>
+                            <input type="submit" value="执行" class="btn btn-primary"/>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+            <!-- 添加按钮 -->
+            {% if add_btn %}
+                <div style="margin: 20px 0;float: left;">{{ add_btn|safe }}</div>
+            {% endif %}
 
-		<!-- 内容展示 -->
-		<table class="table table-bordered">
-			<thead>
-			<tr>
-				{% for item in header_list %}
-					<th style="text-align: center;color: #337ab7">{{ item }}</th>
-				{% endfor %}
-			</tr>
-			</thead>
-			<tbody>
-			{% for row in body_list %}
-				<tr>
-					{% for ele in row %}
-						<td>{{ ele }}</td>
-					{% endfor %}
-				</tr>
-			{% endfor %}
-			</tbody>
-		</table>
-		<!-- 分页展示 -->
-		<nav aria-label="Page navigation">
-			<ul class="pagination">
-				<li>{{ pager.page_html|safe }}</li>
-			</ul>
-		</nav>
-	</div>
+            <!-- 内容展示 -->
+            <table class="table table-bordered">
+                <thead>
+                <tr>
+                    {% for item in header_list %}
+                        <th style="text-align: center;color: #337ab7">{{ item }}</th>
+                    {% endfor %}
+                </tr>
+                </thead>
+                <tbody>
+                {% for row in body_list %}
+                    <tr>
+                        {% for ele in row %}
+                            <td>{{ ele }}</td>
+                        {% endfor %}
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </form>
+
+        <!-- 分页展示 -->
+        <nav aria-label="Page navigation">
+            <ul class="pagination">
+                <li>{{ pager.page_html|safe }}</li>
+            </ul>
+        </nav>
+    </div>
 {% endblock %}

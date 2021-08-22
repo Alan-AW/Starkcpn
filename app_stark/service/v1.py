@@ -6,6 +6,7 @@ from django.shortcuts import render, redirect, HttpResponse
 from django.urls import reverse
 from django.http import QueryDict
 from django import forms
+from django.db.models import ForeignKey, ManyToManyField
 from app_stark.utils.pageination import Pagination
 from django.db.models import Q
 
@@ -21,6 +22,8 @@ class StarkHandler(object):
     has_add_btn = True  # 是否显示 添加 按钮
     order_list = list()  # 排序规则
     search_list = list()  # 默认查询方式
+    action_list = list()  # 批量操作选项
+    search_group = list()  # 组合搜索组默认配置
     # 配置文件，自定义页面展示的字段，
     # 如果没有自定义字段信息，那么就使用默认的展示数据表中的所有字段
     # 如果需要自定义，那么在APP下的XXXHandler类中进行自定义
@@ -67,6 +70,10 @@ class StarkHandler(object):
             return '<a href="%s" class="btn btn-primary">添加</a>' % add_url
         return None
 
+    def get_action_list(self):
+        # 获取批量操作列表
+        return self.action_list
+
     def get_order_list(self):
         """
         默认数据展示的排序为 -id
@@ -79,6 +86,10 @@ class StarkHandler(object):
         APP中进行配置之后便按照设置的列进行搜索（也就是字段）
         """
         return self.search_list
+
+    def get_search_group(self):
+        # 组合搜索钩子函数，方便开发自定义
+        return self.search_group
 
     def get_model_form_class(self):
         """
@@ -105,11 +116,37 @@ class StarkHandler(object):
         value.extend(self.list_display)
         return value
 
-    def changelist_view(self, request):
+    def action_multi_delete(self, request, *args, **kwargs):
+        # 自定义批量操作下拉框选项
+        # 批量删除  如果执行完该函数之后需要跳转到某个地址的话，那么就返回到某个地址
+        pk_list = request.POST.getlist('pk')
+        self.model_class.objects.filter(id__in=pk_list).delete()  # 执行删除操作
+        # return redirect('http://www.baidu.com')
+
+    def action_multi_init(self, request):
+        # 批量初始化
+        return HttpResponse('批量初始化方法正在开发中!')
+
+    def changelist_view(self, request, *args, **kwargs):
         """
         数据展示视图
         """
-        ##########  获取模糊搜索范围 ##################
+        ##########  1.获取批量操作action ##################
+        action_list = self.get_action_list()
+        action_dict = {func.__name__: func.text for func in action_list}  # {'函数名': '函数对象的text'}
+        if request.method == 'POST':
+            action_func_name = request.POST.get('action')
+            if action_func_name:  # 选择之后才做处理
+                if action_func_name in action_dict:
+                    # 反射 -- # 执行自定义操作方法（删除\初始化）
+                    action_response = getattr(self, action_func_name)(request, *args, **kwargs)
+                    # !!!! 扩展功能，如果批量操作之后需要跳转到某个页面，那么就执行自定义的跳转函数 !!!!
+                    if action_response:
+                        return action_response
+                else:
+                    return HttpResponse('严重违规警告！！禁止操作！！')
+
+        ##########  2.获取模糊搜索范围 ##################
         search_list = self.get_search_list()
         # 获取用户搜索关键字
         search_value = request.GET.get('q', '')
@@ -119,9 +156,11 @@ class StarkHandler(object):
         if search_value:
             for item in search_list:
                 conn.children.append((item, search_value))
-        ##########  获取排序规则 ##################
+
+        ##########  3.获取排序规则 ##################
         order = self.get_order_list()  # 如果search_list没有值，默认不显示搜索框
-        ########## 1 处理分页 ##################
+
+        ########## 4.处理分页 ##################
         # 获取数据库中的数据
         queryset = self.model_class.objects.filter(conn).order_by(*order)
         # 根据URL中的page参数计算出数据的索引位置
@@ -138,8 +177,8 @@ class StarkHandler(object):
         )
         data_list = queryset[pager.start:pager.end]  # 计算出对应的页的数据
 
-        ########## 2 处理表格 ##################
-        # 2.1. 处理表头 -- 使用models中的表类中字段的verbose_name
+        ########## 5.处理表格 ##################
+        # 5.1. 处理表头 -- 使用models中的表类中字段的verbose_name
         # 页面要显示的列
         list_display = self.get_list_display()
         header_list = list()
@@ -154,7 +193,8 @@ class StarkHandler(object):
                 header_list.append(verbose_name)
         else:
             header_list.append(self.model_class._meta.model_name)  # 默认显示数据表类对象
-        # 2.2. 处理表的内容tbody
+
+        # 5.2. 处理表的内容tbody
         body_list = list()
         for row in data_list:
             tr_list = list()
@@ -171,8 +211,13 @@ class StarkHandler(object):
                 tr_list.append(row)
             body_list.append(tr_list)
 
-        ########## 3 处理添加按钮 ##################
+        ########## 6 处理添加按钮 ##################
         add_btn = self.get_add_btn()
+
+        ########## 7 处理组合搜索 ##################
+        search_group = self.get_search_group()
+        for option in search_group:
+            option.get_queryset_or_tuple(self.model_class, request, *args, **kwargs)
 
         return render(request, 'stark/changelist.html', locals())
 
@@ -184,7 +229,7 @@ class StarkHandler(object):
         """
         form.save()
 
-    def add_view(self, request):
+    def add_view(self, request, *args, **kwargs):
         model_form_class = self.get_model_form_class()
         if request.method == 'GET':
             form = model_form_class()
@@ -196,7 +241,7 @@ class StarkHandler(object):
             return redirect(self.reverse_list_url())
         return render(request, 'stark/change.html', locals())
 
-    def edit_view(self, request, pk):
+    def edit_view(self, request, pk, *args, **kwargs):
         current_obj = self.model_class.objects.filter(pk=pk).first()
         if not current_obj:
             return HttpResponse('修改的数据不存在！')
@@ -211,7 +256,7 @@ class StarkHandler(object):
             return redirect(self.reverse_list_url())
         return render(request, 'stark/change.html', locals())
 
-    def delete_view(self, request, pk):
+    def delete_view(self, request, pk, *args, **kwargs):
         return_url = self.reverse_list_url()
         if request.method == 'GET':
             cancelUrl = return_url
@@ -443,3 +488,39 @@ class StarkModelForm(forms.ModelForm):
         super(StarkModelForm, self).__init__(*args, **kwargs)
         for name, field in self.fields.items():
             field.widget.attrs['class'] = 'form-control'
+
+
+class SearchOption(object):
+    """
+    默认的组合搜索条件封装类，在app中可以通过继承该类并且重写方法：
+    get_db_condition(self, request, *args, **kwargs)
+    实现自定义的搜索条件
+    """
+
+    # 组合搜索条件尽量封装到一个类中进行属性的调用即可
+    def __init__(self, field, db_condition=None):
+        """
+        field: 组合搜索关联的字段
+        db_condition: 数据库关联查询的条件
+        """
+        self.field = field
+        if not db_condition:
+            db_condition = {}
+        self.db_condition = db_condition
+
+    def get_db_condition(self, request, *args, **kwargs):
+        # 默认的搜索条件，可以通过改写此方法进行定制不同的搜索方式
+        return self.db_condition
+
+    def get_queryset_or_tuple(self, model_class, request, *args, **kwargs):
+        # 根据字段去获取关联的数据库的数据
+        # 根据字符串去对应的models类中找到字段对象
+        field_obj = model_class._meta.get_field(self.field)
+        # 根据对象获取到关联数据
+        if isinstance(field_obj, ForeignKey) or isinstance(field_obj, ManyToManyField):
+            # 对于ForeignKey, ManyToManyField 应该去获取关联的表的数据
+            db_condition = self.get_db_condition(request, *args, **kwargs)
+            print(self.field, field_obj.related_model.objects.filter(**db_condition))
+        else:
+            # choice 字段应该去获取对应的choice元组
+            print(self.field, field_obj.choices)

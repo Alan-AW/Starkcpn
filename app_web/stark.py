@@ -32,7 +32,7 @@ from django.shortcuts import render, redirect, HttpResponse
 from django.urls import reverse
 from django.utils.safestring import mark_safe
 from django import forms
-from app_stark.service.v1 import site, StarkHandler, get_choices_text, StarkModelForm
+from app_stark.service.v1 import site, StarkHandler, get_choices_text, StarkModelForm, SearchOption
 from app_web import models
 
 
@@ -83,6 +83,20 @@ class UserHandler(StarkHandler):
     search_list = ['name__contains', 'age__contains', 'email__contains']
     # 精确搜索（“或”）的查询配置，不配置则默认不显示搜索框
     # search_list = ['name', 'age', 'email']
+
+    # 自定义下拉框批量操作功能配置文件
+    StarkHandler.action_multi_delete.text = '批量删除'  # 设置页面上自定义函数名对应的文本信息.text
+    StarkHandler.action_multi_init.text = '批量初始化'  # 设置页面上自定义函数名对应的文本信息.text
+    # 配置上自定义批量操作执行的函数即可实现批量操作
+    # 如果批量操作之后需要跳转到其他页面，那么在定义的函数中加入return redicte() 即可
+    action_list = [StarkHandler.action_multi_delete, StarkHandler.action_multi_init]
+
+    # 组合搜索配置,自定义搜索条件，直接传入两个参数（字段，规则）即可
+    search_group = [
+        SearchOption('sex'),
+        SearchOption('depart', {'id__gt': 2}),
+    ]
+
 
 site.register(models.Depart, DepartHandler)
 site.register(models.User, UserHandler)
