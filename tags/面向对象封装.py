@@ -1,3 +1,5 @@
+# 面向对象的封装示例
+
 class Foo(object):
     def __init__(self, name):
         self.name = name
