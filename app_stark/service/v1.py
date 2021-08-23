@@ -91,6 +91,23 @@ class StarkHandler(object):
         # 组合搜索钩子函数，方便开发自定义
         return self.search_group
 
+    def get_search_group_condition(self, request):
+        condition = dict()
+        # 获取URL传递的所有组合搜索的参数
+        for option in self.get_search_group():  # 防止误操作，地址栏传递非常多的参数过来进行查询，只去获取配置当中的配置项进行查询
+            if option.is_multi:
+                values_list = request.GET.getlist(option.field)  # 支持多选如果一个选项用户进行了多选操作，那么一个键会对应多个值，都要获取到
+                if not values_list:
+                    continue
+                condition['%s__in' % option.field] = values_list  # 多选使用 '__in' 表示 或 搜索条件，而不是 且
+            else:
+                values = request.GET.get(option.field)  # 单选操作，只需要获取对应的一个值即可
+                if not values:
+                    continue
+                condition[option.field] = values  # 单选不使用 '__in' 直接赋值即可
+
+        return condition
+
     def get_model_form_class(self):
         """
         为所有视图函数提供modelform的编辑，
@@ -159,10 +176,11 @@ class StarkHandler(object):
 
         ##########  3.获取排序规则 ##################
         order = self.get_order_list()  # 如果search_list没有值，默认不显示搜索框
+        search_group_condition = self.get_search_group_condition(request)
 
         ########## 4.处理分页 ##################
-        # 获取数据库中的数据
-        queryset = self.model_class.objects.filter(conn).order_by(*order)
+        # 获取数据库中的数据(包含手动搜索和组合搜索的数据)
+        queryset = self.model_class.objects.filter(conn).filter(**search_group_condition).order_by(*order)
         # 根据URL中的page参数计算出数据的索引位置
         # 生成HTML的页码
         query_paramas = request.GET.copy()  # 拷贝URL地址get参数
@@ -498,12 +516,21 @@ class SearchGroupRow(object):
     将搜索按钮作为属性封装成统一的对象
     组合搜索关联获取到的数据，queryset对象 或 元祖
     """
-    def __init__(self, queryset_or_tuple, option):
+
+    def __init__(self, title, queryset_or_tuple, option, query_dict):
+        """
+        title: 组合搜索的列名称（分类）使用的是数据库中的 verbose_name 字段
+        queryset_or_tuple: 组合搜索关联获取的数据
+        option: 配置项APP的Stark.py相关的类中自定义的内容
+        query_dict: request.GET 用于获取到url中的组合筛选值
+        """
+        self.title = title
         self.queryset_or_tuple = queryset_or_tuple
         self.option = option
+        self.query_dict = query_dict
 
     def __iter__(self):
-        # 定义一个__iter__方法可以将类变为可迭代对象
+        # ! 定义一个__iter__方法可以将类变为可迭代对象 ! #
         """
         # 默认的展示
         if isinstance(self.queryset_or_tuple, tuple):
@@ -520,9 +547,50 @@ class SearchGroupRow(object):
         """
         # 优化后的可自定义的展示
         """
+        total_dict = self.query_dict.copy()
+        total_dict._mutable = True
+        yield '<div class="whole">'
+        yield str(self.title) + '(*^▽^*)'
+        yield '</div>'
+        yield '<div class="othoers">'
+        if not self.query_dict.getlist(self.option.field):
+            yield '<a href="?%s" class="active">全部</a>' % total_dict.urlencode()
+        else:
+            total_dict.pop(self.option.field)
+            yield '<a href="?%s">全部</a>' % total_dict.urlencode()
         for item in self.queryset_or_tuple:
             show_test = self.option.get_show_test(item)
-            yield '<a href="#">%s</a>' % show_test
+            value = str(self.option.get_value(item))
+            # 生成筛选按钮
+            # 1. 需要request.GET（self.query_dict）
+            # 返回的搜索条件： request.GET: depart=1&sex=1  ==> <QueryDict: {'depart': ['1'], 'sex': ['1']}>
+            # 2. 获取组合搜索文本背后对应的值
+            query_dict = self.query_dict.copy()  # 需要修改一份request.GET的值，但是不能直接修改，需要深拷贝一份
+            query_dict._mutable = True  # 设置成可以被修改（默认不可修改）
+            origin_value_list = query_dict.getlist(self.option.field)
+            if not self.option.is_multi:  # 不支持多选
+                query_dict[self.option.field] = value  # 设置值（option字段）
+                if value in origin_value_list:
+                    # 再次点击则 取消 当前搜索条件
+                    query_dict.pop(self.option.field)
+                    # 被选中样式设计
+                    yield '<a href="?%s" class="active">%s</a>' % (query_dict.urlencode(), show_test)
+                else:
+                    yield '<a href="?%s">%s</a>' % (query_dict.urlencode(), show_test)
+            else:
+                # 支持多选
+                multi_value_list = query_dict.getlist(self.option.field)
+                if value in multi_value_list:
+                    multi_value_list.remove(value)
+                    query_dict.setlist(self.option.field, multi_value_list)
+                    yield '<a href="?%s" class="active">%s</a>' % (query_dict.urlencode(), show_test)
+                else:
+                    multi_value_list.append(value)
+                    query_dict.setlist(self.option.field, multi_value_list)
+                    yield '<a href="?%s">%s</a>' % (query_dict.urlencode(), show_test)
+
+        yield '</div>'
+
 
 class SearchOption(object):
     """
@@ -532,11 +600,13 @@ class SearchOption(object):
     """
 
     # 组合搜索条件尽量封装到一个类中进行属性的调用即可
-    def __init__(self, field, db_condition=None, show_func=None):
+    def __init__(self, field, db_condition=None, show_func=None, value_func=None, is_multi=True):
         """
         field: 组合搜索关联的字段
         db_condition: 数据库关联查询的条件
-        show_func: 用户自定义组合搜索显示的扩展（显示成图标或者加上前后缀）
+        show_func: 用户自定义组合搜索显示的按钮扩展（用于显示页面文本--显示成图标或者加上前后缀）
+        value_func: 组合搜索自定制的
+        is_multi: 是否支持多选
         """
         self.field = field
         if not db_condition:
@@ -544,31 +614,42 @@ class SearchOption(object):
         self.db_condition = db_condition
         self.show_func = show_func
         self.is_choice = False
+        self.value_func = value_func
+        self.is_multi = is_multi
 
     def get_db_condition(self, request, *args, **kwargs):
         # 默认的搜索条件，可以通过改写此方法进行定制不同的搜索方式
         return self.db_condition
 
-    def get_show_test(self, field_obj):
-        """
-        获取文本函数也就是配置项中自定义页面显示的内容
-        """
-        if self.show_func:
-            return self.show_func
-        if self.is_choice:
-            return field_obj[1]
-        else:
-            return str(field_obj)
-
     def get_queryset_or_tuple(self, model_class, request, *args, **kwargs):
         # 根据字段去获取关联的数据库的数据
         # 根据字符串去对应的models类中找到字段对象
         field_obj = model_class._meta.get_field(self.field)
+        title = field_obj.verbose_name
         # 根据对象获取到关联数据
         if isinstance(field_obj, ForeignKey) or isinstance(field_obj, ManyToManyField):
             # 对于ForeignKey, ManyToManyField 应该去获取关联的表的数据: Queryset  -- 然后封装成属性
             db_condition = self.get_db_condition(request, *args, **kwargs)
-            return SearchGroupRow(field_obj.related_model.objects.filter(**db_condition), self)
+            return SearchGroupRow(title, field_obj.related_model.objects.filter(**db_condition), self, request.GET)
         else:
             # choice 字段应该去获取对应的choice元组 -- 然后封装成属性
-            return SearchGroupRow(field_obj.choices)
+            self.is_choice = True
+            return SearchGroupRow(title, field_obj.choices, self, request.GET)
+
+    def get_show_test(self, field_obj):
+        """
+        获取文本函数也就是配置项中自定义页面显示的内容
+        自动计算要显示的文本
+        """
+        if self.show_func:
+            return self.show_func(field_obj)
+        if self.is_choice:
+            return field_obj[1]
+        return str(field_obj)
+
+    def get_value(self, field_obj):
+        if self.value_func:
+            return self.value_func(field_obj)
+        if self.is_choice:
+            return field_obj[0]
+        return field_obj.pk

@@ -64,13 +64,13 @@ class UserModelForm(StarkModelForm):
 
 class UserHandler(StarkHandler):
     # 定制页面显示内容，list_display 中的项要与数据表的字段对应
-    list_display = [StarkHandler.display_checkbox, 'id', 'name', get_choices_text('性别', 'sex'), 'age', 'email',
+    list_display = [StarkHandler.display_checkbox, 'id', 'name', get_choices_text('性别', 'sex'), 'age', 'depart',
+                    'email',
                     StarkHandler.display_edit, StarkHandler.display_del]
     """
         * 如果根据用户的不同来定制不同的列，那么直接写上这个方法，返回值内写入自定义展示的内容
             def get_list_display(self):
                 return ['name']
-        
         * 对于表中的choice字段，直接调用 get_choices_text('表头', '字段名') 即可生效。
     """
     has_add_btn = True  # 定制是否显示添加按钮
@@ -94,10 +94,11 @@ class UserHandler(StarkHandler):
     """
     组合搜索配置,自定义搜索条件，直接传入两个参数（字段，规则）
     如果需要自定义显示的样式的话，再定义一个函数 show_func 页面将显示该函数的返回值作为显示内容
+    多选功能的支持可以配置上 is_multi 参数  默认支持多选 True
     """
     search_group = [
-        SearchOption('sex', show_func=None),
-        SearchOption('depart', {'id__gt': 2}, show_func=None),
+        SearchOption('sex', show_func=lambda field_obj: field_obj[1] + '同事'),
+        SearchOption('depart', {'id__gt': 2}, show_func=None, is_multi=True),
     ]
 
 
