@@ -520,7 +520,7 @@ class SearchOption(object):
         if isinstance(field_obj, ForeignKey) or isinstance(field_obj, ManyToManyField):
             # 对于ForeignKey, ManyToManyField 应该去获取关联的表的数据
             db_condition = self.get_db_condition(request, *args, **kwargs)
-            print(self.field, field_obj.related_model.objects.filter(**db_condition))
+            self.field, field_obj.related_model.objects.filter(**db_condition)
         else:
             # choice 字段应该去获取对应的choice元组
-            print(self.field, field_obj.choices)
+            self.field, field_obj.choices
