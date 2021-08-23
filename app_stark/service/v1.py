@@ -215,9 +215,12 @@ class StarkHandler(object):
         add_btn = self.get_add_btn()
 
         ########## 7 处理组合搜索 ##################
+        search_group_row_list = list()
         search_group = self.get_search_group()
         for option in search_group:
-            option.get_queryset_or_tuple(self.model_class, request, *args, **kwargs)
+            # 每一行数据
+            row = option.get_queryset_or_tuple(self.model_class, request, *args, **kwargs)
+            search_group_row_list.append(row)  # 封装的对象
 
         return render(request, 'stark/changelist.html', locals())
 
@@ -490,6 +493,37 @@ class StarkModelForm(forms.ModelForm):
             field.widget.attrs['class'] = 'form-control'
 
 
+class SearchGroupRow(object):
+    """
+    将搜索按钮作为属性封装成统一的对象
+    组合搜索关联获取到的数据，queryset对象 或 元祖
+    """
+    def __init__(self, queryset_or_tuple, option):
+        self.queryset_or_tuple = queryset_or_tuple
+        self.option = option
+
+    def __iter__(self):
+        # 定义一个__iter__方法可以将类变为可迭代对象
+        """
+        # 默认的展示
+        if isinstance(self.queryset_or_tuple, tuple):
+            # 如果是元祖对象的话，直接获取到元祖内的 choice 选项
+            # ((1, '男'), (2, '女'))
+            for item in self.queryset_or_tuple:
+                yield '<a href="#">%s</a>' % item[1]
+        else:
+            # 如果是一个Queryset对象，那么直接迭代返回该对象即可
+            # < QuerySet[ < Depart: 董事 >] >
+            for item in self.queryset_or_tuple:
+                yield '<a href="#">%s</a>' % str(item)
+        """
+        """
+        # 优化后的可自定义的展示
+        """
+        for item in self.queryset_or_tuple:
+            show_test = self.option.get_show_test(item)
+            yield '<a href="#">%s</a>' % show_test
+
 class SearchOption(object):
     """
     默认的组合搜索条件封装类，在app中可以通过继承该类并且重写方法：
@@ -498,19 +532,33 @@ class SearchOption(object):
     """
 
     # 组合搜索条件尽量封装到一个类中进行属性的调用即可
-    def __init__(self, field, db_condition=None):
+    def __init__(self, field, db_condition=None, show_func=None):
         """
         field: 组合搜索关联的字段
         db_condition: 数据库关联查询的条件
+        show_func: 用户自定义组合搜索显示的扩展（显示成图标或者加上前后缀）
         """
         self.field = field
         if not db_condition:
             db_condition = {}
         self.db_condition = db_condition
+        self.show_func = show_func
+        self.is_choice = False
 
     def get_db_condition(self, request, *args, **kwargs):
         # 默认的搜索条件，可以通过改写此方法进行定制不同的搜索方式
         return self.db_condition
+
+    def get_show_test(self, field_obj):
+        """
+        获取文本函数也就是配置项中自定义页面显示的内容
+        """
+        if self.show_func:
+            return self.show_func
+        if self.is_choice:
+            return field_obj[1]
+        else:
+            return str(field_obj)
 
     def get_queryset_or_tuple(self, model_class, request, *args, **kwargs):
         # 根据字段去获取关联的数据库的数据
@@ -518,9 +566,9 @@ class SearchOption(object):
         field_obj = model_class._meta.get_field(self.field)
         # 根据对象获取到关联数据
         if isinstance(field_obj, ForeignKey) or isinstance(field_obj, ManyToManyField):
-            # 对于ForeignKey, ManyToManyField 应该去获取关联的表的数据
+            # 对于ForeignKey, ManyToManyField 应该去获取关联的表的数据: Queryset  -- 然后封装成属性
             db_condition = self.get_db_condition(request, *args, **kwargs)
-            self.field, field_obj.related_model.objects.filter(**db_condition)
+            return SearchGroupRow(field_obj.related_model.objects.filter(**db_condition), self)
         else:
-            # choice 字段应该去获取对应的choice元组
-            self.field, field_obj.choices
+            # choice 字段应该去获取对应的choice元组 -- 然后封装成属性
+            return SearchGroupRow(field_obj.choices)

@@ -91,10 +91,13 @@ class UserHandler(StarkHandler):
     # 如果批量操作之后需要跳转到其他页面，那么在定义的函数中加入return redicte() 即可
     action_list = [StarkHandler.action_multi_delete, StarkHandler.action_multi_init]
 
-    # 组合搜索配置,自定义搜索条件，直接传入两个参数（字段，规则）即可
+    """
+    组合搜索配置,自定义搜索条件，直接传入两个参数（字段，规则）
+    如果需要自定义显示的样式的话，再定义一个函数 show_func 页面将显示该函数的返回值作为显示内容
+    """
     search_group = [
-        SearchOption('sex'),
-        SearchOption('depart', {'id__gt': 2}),
+        SearchOption('sex', show_func=None),
+        SearchOption('depart', {'id__gt': 2}, show_func=None),
     ]
 
 
